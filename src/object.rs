@@ -6,13 +6,13 @@ use chrono::{Utc, DateTime};
 use chrono::serde::ts_seconds;
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ObjectType {
     Binary,
     Image
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ContentEncoding {
     Br,
     Deflate,
@@ -31,15 +31,30 @@ impl ContentEncoding {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Data {
+    pub content: String,
+    pub content_encoding: ContentEncoding,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Object {
     pub identifier: String,
     pub object_type: ObjectType,
-    pub content: String,
     pub content_type: String,
-    pub content_encoding: ContentEncoding,
     #[serde(with = "ts_seconds")]
-    pub date: DateTime<Utc>
+    pub date: DateTime<Utc>,
+    pub with_data: bool,
+    pub data: Data
+}
+
+impl Default for Data {
+    fn default() -> Data {
+        Data {
+            content: "".to_owned(),
+            content_encoding: ContentEncoding::Identity,
+        }
+    }
 }
 
 impl Default for Object {
@@ -47,10 +62,10 @@ impl Default for Object {
         Object {
             identifier: "default".to_owned(),
             object_type: ObjectType::Binary,
-            content: "hello world".to_owned(),
             content_type: "text/html; charset=UTF-8".to_owned(),
-            content_encoding: ContentEncoding::Identity,
-            date: Utc::now()
+            date: Utc::now(),
+            with_data: false,
+            data: Data { ..Default::default() }
         }
     }
 }
@@ -81,12 +96,12 @@ impl Responder for Resp {
                 let mut response = HttpResponse::build(self.http_status);
                 response
                     .content_type(self.object.content_type)
-                    .header("content-encoding", self.object.content_encoding.to_string())
+                    .header("content-encoding", self.object.data.content_encoding.to_string())
                     .header("x-powered-by", "idawnlight/one-rust");
                 for header in self.extra_headers {
                     response.header(&*header.0, &*header.1);
                 }
-                response.body(self.object.content.to_owned())
+                response.body(self.object.data.content.to_owned())
             }
         ))
     }

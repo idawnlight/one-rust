@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub host: String,
-    pub expiration: u32,
+    pub expiration: i64,
 }
 
 pub fn read(namespace: String) -> Result<Config, Box<dyn Error>> {

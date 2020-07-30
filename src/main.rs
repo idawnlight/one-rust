@@ -11,13 +11,13 @@ use object::Object;
 use crate::object::Resp;
 
 async fn index() -> Resp {
-    let foo = Object {
-        content: "hello world".to_owned(),
-        ..Default::default()
-    };
+    // let foo = Object {
+    //     // content: "hello world".to_owned(),
+    //     ..Default::default()
+    // };
     Resp {
         object: Object {
-            content: serde_json::to_string(&foo).unwrap(),
+            // content: serde_json::to_string(&foo).unwrap(),
             ..Default::default()
         },
         ..Default::default()
