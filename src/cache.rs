@@ -19,14 +19,16 @@ pub fn from_cache(identifier: String) -> Option<Object> {
     }
 }
 
-pub fn get_data(identifier: &str) -> String {
+pub fn get_data(identifier: &str) -> Vec<u8> {
     let path = "cache/".to_owned() + identifier + ".data";
-    let path = Path::new(&path);
-    fs::read_to_string(path).unwrap()
+    match std::fs::read(Path::new(&path)) {
+        Ok(v) => v,
+        Err(_) => Vec::new()
+    }
 }
 
 pub fn refresh_cache(identifier: &str, uri: String) -> std::io::Result<()> {
-    let resp = match get_source(uri) {
+    let mut resp = match get_source(uri) {
         Some(o) => o,
         _ => return Ok(())
     };
@@ -37,10 +39,7 @@ pub fn refresh_cache(identifier: &str, uri: String) -> std::io::Result<()> {
         ..Default::default()
     };
 
-    let data = match resp.text() {
-        Ok(d) => d,
-        _ => return Ok(())
-    };
+    let data = resp.bytes().unwrap();
 
     // let mut ret_vec: [u8];
 

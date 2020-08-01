@@ -33,7 +33,7 @@ impl ContentEncoding {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Data {
-    pub content: String,
+    pub content: Vec<u8>,
     pub content_encoding: ContentEncoding,
 }
 
@@ -51,7 +51,7 @@ pub struct Object {
 impl Default for Data {
     fn default() -> Data {
         Data {
-            content: "".to_owned(),
+            content: Vec::new(),
             content_encoding: ContentEncoding::Identity,
         }
     }
@@ -101,7 +101,7 @@ impl Responder for Resp {
                 for header in self.extra_headers {
                     response.header(&*header.0, &*header.1);
                 }
-                response.body(self.object.data.content.to_owned())
+                response.body(self.object.data.content)
             }
         ))
     }
