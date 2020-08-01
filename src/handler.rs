@@ -7,11 +7,14 @@ use sha2::{Sha256, Digest};
 use std::thread;
 use chrono::Utc;
 use crate::cache::refresh_cache;
+use std::sync::RwLock;
 
 lazy_static! {
     pub static ref SETTINGS: HashMap<String, Config> = {
         crate::config::init().unwrap()
     };
+
+	pub static ref REFLOCK: RwLock<HashMap<String, bool>> = RwLock::new(HashMap::new());
 }
 
 pub async fn handle(req: HttpRequest) -> Resp {
@@ -43,12 +46,15 @@ pub async fn handle(req: HttpRequest) -> Resp {
                 content: crate::cache::get_data(&identifier),
                 ..Default::default()
             };
-            if Utc::now().timestamp() - o.date.timestamp() > config.expiration {
+            if Utc::now().timestamp() - o.date.timestamp() > config.expiration && !REFLOCK.read().unwrap().contains_key(&identifier) {
                 thread::spawn(move || {
-                    refresh_cache(&identifier, uri)
+                    REFLOCK.write().unwrap().insert(identifier.clone(), true);
+                    match refresh_cache(&identifier, uri) {
+                        _ => REFLOCK.write().unwrap().remove(&identifier)
+                    }
                 });
             }
-            Resp { object: o, config: config, ..Default::default()}
+            Resp { object: o, config, ..Default::default()}
         },
         None => {
             thread::spawn(move || {
