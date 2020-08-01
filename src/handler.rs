@@ -4,17 +4,19 @@ use crate::config::Config;
 use std::collections::HashMap;
 use actix_web::http::StatusCode;
 use sha2::{Sha256, Digest};
-use std::thread;
 use chrono::Utc;
-use crate::cache::refresh_cache;
 use std::sync::RwLock;
+use threadpool::ThreadPool;
+use std::sync::Mutex;
 
 lazy_static! {
     pub static ref SETTINGS: HashMap<String, Config> = {
         crate::config::init().unwrap()
     };
 
-	pub static ref REFLOCK: RwLock<HashMap<String, bool>> = RwLock::new(HashMap::new());
+	static ref REFLOCK: RwLock<HashMap<String, bool>> = RwLock::new(HashMap::new());
+
+	static ref THREADPOOL: Mutex<ThreadPool> = Mutex::new(ThreadPool::with_name("updater".to_string(), num_cpus::get()));
 }
 
 pub async fn handle(req: HttpRequest) -> Resp {
@@ -35,11 +37,10 @@ pub async fn handle(req: HttpRequest) -> Resp {
         };
     }
     let config = SETTINGS.get(namespace).unwrap();
-    let identifier = hex::encode(Sha256::digest((namespace.to_owned() + path).as_ref()));
-    let uri = (&config.host).to_owned() + path;
-    // println!("{:?}", identifier);
+    let query_string = req.query_string();
+    let identifier = hex::encode(Sha256::digest((namespace.to_owned() + path + query_string).as_ref()));
+    let uri = (&config.host).to_owned() + path + "?" + query_string;
     let object = crate::cache::from_cache(identifier.clone());
-    // println!("{:?}", object);
     match object {
         Some(mut o) => {
             o.data = Data {
@@ -47,29 +48,15 @@ pub async fn handle(req: HttpRequest) -> Resp {
                 ..Default::default()
             };
             if Utc::now().timestamp() - o.date.timestamp() > config.expiration && !REFLOCK.read().unwrap().contains_key(&identifier) {
-                thread::spawn(move || {
-                    REFLOCK.write().unwrap().insert(identifier.clone(), true);
-                    match refresh_cache(&identifier, uri) {
-                        _ => REFLOCK.write().unwrap().remove(&identifier)
-                    }
-                });
+                refresh(identifier.clone(), uri.clone());
             }
-            Resp { object: o, config, ..Default::default()}
+            Resp { object: o, config, ..Default::default() }
         },
         None => {
-            thread::spawn(move || {
-                refresh_cache(&identifier, uri)
-            });
-            redirect((&config.host).to_owned() + path)
+            refresh(identifier.clone(), uri.clone());
+            redirect(uri)
         }
     }
-    // Resp {
-    //     object: Object {
-    //         content: identifier + &*uri,
-    //         ..Default::default()
-    //     },
-    //     ..Default::default()
-    // }
 }
 
 fn redirect(uri: String) -> Resp {
@@ -80,4 +67,12 @@ fn redirect(uri: String) -> Resp {
         extra_headers: headers,
         ..Default::default()
     }
+}
+
+fn refresh(identifier: String, uri: String) {
+    THREADPOOL.lock().unwrap().execute(move || {
+        REFLOCK.write().unwrap().insert(identifier.clone(), true);
+        match crate::cache::refresh_cache(&identifier, uri) { _ => {} };
+        REFLOCK.write().unwrap().remove(&identifier);
+    });
 }

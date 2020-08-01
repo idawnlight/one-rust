@@ -10,9 +10,6 @@ pub fn from_cache(identifier: String) -> Option<Object> {
     if !path.exists() {
         return None;
     }
-    // let res = serde_json::from_str::<Object>(&*read_to_string(path).unwrap());
-    // println!("{:?}", res);
-    // fs::write("cache/fd4f62f64cf7e327dc5a460e1c3ab20b097365438a74977da31d3e93b2299247.meta", serde_json::to_string(&Object { ..Default::default() }).unwrap());
     match serde_json::from_str::<Object>(&*fs::read_to_string(path).unwrap()) {
         Ok(c) => Some(c),
         _ => None
@@ -64,8 +61,6 @@ pub fn refresh_cache(identifier: &str, uri: String) -> std::io::Result<()> {
     fs::write("cache/".to_owned() + &identifier + ".data", data)?;
     // fs::write("cache/".to_owned() + &identifier + ".data.gz", data_gz)?;
     fs::write("cache/".to_owned() + &identifier + ".meta", serde_json::to_string(&object).unwrap())
-
-    // fs::write("cache/".to_owned() + &identifier + ".data", Utc::now().format("%Y-%m-%d %H:%M:%S").to_string())
 }
 
 fn get_source(uri: String) -> Option<Response> {
@@ -75,5 +70,6 @@ fn get_source(uri: String) -> Option<Response> {
     };
 
     if resp.status() != reqwest::StatusCode::OK { return None }
+
     Some(resp)
 }
