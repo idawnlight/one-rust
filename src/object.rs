@@ -5,6 +5,7 @@ use actix_web::http::StatusCode;
 use chrono::{Utc, DateTime};
 use chrono::serde::ts_seconds;
 use std::collections::HashMap;
+use crate::config::Config;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ObjectType {
@@ -72,6 +73,7 @@ impl Default for Object {
 
 pub struct Resp {
     pub object: Object,
+    pub config: &'static Config,
     pub http_status: StatusCode,
     pub extra_headers: HashMap<String, String>
 }
@@ -80,9 +82,16 @@ impl Default for Resp {
     fn default() -> Resp {
         Resp {
             object: Object { ..Default::default() },
+            config: crate::handler::SETTINGS.get("__empty").unwrap(),
             http_status: StatusCode::OK,
             extra_headers: HashMap::new()
         }
+    }
+}
+
+impl Resp {
+    fn is_expired(&self) -> bool {
+        Utc::now().timestamp() - self.object.date.timestamp() > self.config.expiration
     }
 }
 
@@ -95,9 +104,14 @@ impl Responder for Resp {
             {
                 let mut response = HttpResponse::build(self.http_status);
                 response
-                    .content_type(self.object.content_type)
+                    .content_type(&self.object.content_type)
                     .header("content-encoding", self.object.data.content_encoding.to_string())
+                    .header("ETag", self.object.date.timestamp().to_string() + "-" + &self.object.data.content.len().to_string())
                     .header("x-powered-by", "idawnlight/one-rust");
+                match &self.is_expired() {
+                    true => response.header("cache-control", "no-cache, max-age=0"),
+                    false => response.header("cache-control", "max-age=".to_owned() + &*self.config.expiration.to_string())
+                };
                 for header in self.extra_headers {
                     response.header(&*header.0, &*header.1);
                 }

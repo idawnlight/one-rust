@@ -10,6 +10,15 @@ pub struct Config {
     pub expiration: i64,
 }
 
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            host: "".to_owned(),
+            expiration: 0
+        }
+    }
+}
+
 pub fn read(namespace: String) -> Result<Config, Box<dyn Error>> {
     let rpath = "config/".to_owned() + &namespace + ".json";
     let path = Path::new(&rpath);
@@ -24,6 +33,7 @@ pub fn read(namespace: String) -> Result<Config, Box<dyn Error>> {
 
 pub fn init() -> Result<HashMap<String, Config>, Box<dyn Error>> {
     let mut config = HashMap::new();
+    config.insert("__empty".to_owned(), Config::default());
     let entries = read_dir("config/")?
         .map(|res| res.map(|e| e.file_name()))
         .collect::<Result<Vec<_>, std::io::Error>>()?;

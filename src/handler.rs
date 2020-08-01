@@ -48,7 +48,7 @@ pub async fn handle(req: HttpRequest) -> Resp {
                     refresh_cache(&identifier, uri)
                 });
             }
-            Resp { object: o, ..Default::default()}
+            Resp { object: o, config: config, ..Default::default()}
         },
         None => {
             thread::spawn(move || {

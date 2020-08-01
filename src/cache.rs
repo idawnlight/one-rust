@@ -1,4 +1,4 @@
-use crate::object::{Object, Data, ContentEncoding, ObjectType};
+use crate::object::{Object, ObjectType};
 use std::path::Path;
 use std::fs;
 use chrono::Utc;
@@ -28,7 +28,7 @@ pub fn get_data(identifier: &str) -> Vec<u8> {
 }
 
 pub fn refresh_cache(identifier: &str, uri: String) -> std::io::Result<()> {
-    let mut resp = match get_source(uri) {
+    let resp = match get_source(uri) {
         Some(o) => o,
         _ => return Ok(())
     };
@@ -38,8 +38,6 @@ pub fn refresh_cache(identifier: &str, uri: String) -> std::io::Result<()> {
         date: Utc::now(),
         ..Default::default()
     };
-
-    let data = resp.bytes().unwrap();
 
     // let mut ret_vec: [u8];
 
@@ -51,15 +49,18 @@ pub fn refresh_cache(identifier: &str, uri: String) -> std::io::Result<()> {
     // // modify params to fit the application needs
     // let mut writer = brotli::CompressorReader::with_params(&data.into_bytes(), 4096 /* buffer size */, &params);
 
-    // match resp.headers().get(reqwest::header::CONTENT_TYPE) {
-    //     Some(c) => {
-    //         match c.to_str().unwrap() {
-    //             "image/jpeg" | "image/png" | "image/bmp" | "image/webp" => { object.object_type = ObjectType::Image },
-    //             _ => {}
-    //         }
-    //     },
-    //     _ => {}
-    // }
+    match &resp.headers().get(reqwest::header::CONTENT_TYPE) {
+        Some(c) => {
+            match c.to_str().unwrap() {
+                "image/jpeg" | "image/png" | "image/bmp" | "image/webp" | "image/gif" => { object.object_type = ObjectType::Image },
+                _ => {}
+            }
+        },
+        _ => {}
+    }
+
+    let data = &resp.bytes().unwrap();
+
     fs::write("cache/".to_owned() + &identifier + ".data", data)?;
     // fs::write("cache/".to_owned() + &identifier + ".data.gz", data_gz)?;
     fs::write("cache/".to_owned() + &identifier + ".meta", serde_json::to_string(&object).unwrap())
