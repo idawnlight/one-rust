@@ -1,5 +1,5 @@
 use actix_web::HttpRequest;
-use crate::object::{Object, Resp, Data};
+use crate::object::{Object, Resp, Data, ContentEncoding};
 use crate::config::Config;
 use std::collections::HashMap;
 use actix_web::http::StatusCode;
@@ -46,9 +46,24 @@ pub async fn handle(req: HttpRequest) -> Resp {
     let object = crate::cache::from_cache(identifier.clone());
     match object {
         Some(mut o) => {
+            let encoding = match req.headers().get(reqwest::header::ACCEPT_ENCODING) {
+                Some(header) => match header.to_str() {
+                    Ok(v) => {
+                        if v.contains("br") {
+                            ContentEncoding::Br
+                        } else if v.contains("gzip") {
+                            ContentEncoding::Gzip
+                        } else {
+                            ContentEncoding::Identity
+                        }
+                    },
+                    _ => ContentEncoding::Identity
+                },
+                None => ContentEncoding::Identity
+            };
             o.data = Data {
-                content: crate::cache::get_data(&identifier),
-                ..Default::default()
+                content: crate::cache::get_data(&identifier, encoding.clone()),
+                content_encoding: encoding
             };
             if Utc::now().timestamp() - o.date.timestamp() > config.expiration && !REFLOCK.read().unwrap().contains_key(&identifier) {
                 refresh(identifier.clone(), uri.clone());

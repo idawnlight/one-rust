@@ -1,8 +1,11 @@
-use crate::object::{Object, ObjectType};
+use crate::object::{Object, ObjectType, ContentEncoding};
 use std::path::Path;
 use std::fs;
 use chrono::Utc;
 use reqwest::blocking::Response;
+use flate2::{GzBuilder, Compression};
+use std::io::Write;
+use brotli::enc::BrotliEncoderParams;
 
 pub fn from_cache(identifier: String) -> Option<Object> {
     let path = "cache/".to_owned() + &identifier + ".meta";
@@ -16,8 +19,13 @@ pub fn from_cache(identifier: String) -> Option<Object> {
     }
 }
 
-pub fn get_data(identifier: &str) -> Vec<u8> {
-    let path = "cache/".to_owned() + identifier + ".data";
+pub fn get_data(identifier: &str, encoding: ContentEncoding) -> Vec<u8> {
+    let mut path = "cache/".to_owned() + identifier + ".data";
+    match encoding {
+        ContentEncoding::Gzip => path += ".gz",
+        ContentEncoding::Br => path += ".br",
+        _ => {}
+    }
     match std::fs::read(Path::new(&path)) {
         Ok(v) => v,
         Err(_) => Vec::new()
@@ -36,16 +44,6 @@ pub fn refresh_cache(identifier: &str, uri: String) -> std::io::Result<()> {
         ..Default::default()
     };
 
-    // let mut ret_vec: [u8];
-
-    // let mut gz = GzEncoder::new(&data.into_bytes(), Compression::default());
-    // let count = gz.read(&mut ret_vec)?;
-    // let data_gz = hex::encode(ret_vec[0..count].to_vec());
-    //
-    // let mut params = BrotliEncoderParams::default();
-    // // modify params to fit the application needs
-    // let mut writer = brotli::CompressorReader::with_params(&data.into_bytes(), 4096 /* buffer size */, &params);
-
     match &resp.headers().get(reqwest::header::CONTENT_TYPE) {
         Some(c) => {
             match c.to_str().unwrap() {
@@ -58,8 +56,21 @@ pub fn refresh_cache(identifier: &str, uri: String) -> std::io::Result<()> {
 
     let data = &resp.bytes().unwrap();
 
+    let mut data_gz = Vec::new();
+    let mut gz = GzBuilder::new().write(&mut data_gz, Compression::default());
+    gz.write_all(data)?;
+    gz.finish()?;
+
+    let mut data_br = Vec::new();
+    let params = BrotliEncoderParams::default();
+    let mut br = brotli::CompressorWriter::with_params(&mut data_br, 4096, &params);
+    br.write_all(data)?;
+    br.flush()?;
+    std::mem::drop(br);
+
     fs::write("cache/".to_owned() + &identifier + ".data", data)?;
-    // fs::write("cache/".to_owned() + &identifier + ".data.gz", data_gz)?;
+    fs::write("cache/".to_owned() + &identifier + ".data.gz", data_gz)?;
+    fs::write("cache/".to_owned() + &identifier + ".data.br", data_br)?;
     fs::write("cache/".to_owned() + &identifier + ".meta", serde_json::to_string(&object).unwrap())
 }
 
