@@ -14,9 +14,9 @@ lazy_static! {
         crate::config::init().unwrap()
     };
 
-	static ref REFLOCK: RwLock<HashMap<String, bool>> = RwLock::new(HashMap::new());
+    static ref REFLOCK: RwLock<HashMap<String, bool>> = RwLock::new(HashMap::new());
 
-	static ref THREADPOOL: Mutex<ThreadPool> = Mutex::new(ThreadPool::with_name("updater".to_string(), num_cpus::get()));
+    static ref THREADPOOL: Mutex<ThreadPool> = Mutex::new(ThreadPool::with_name("updater".to_string(), num_cpus::get()));
 }
 
 pub async fn handle(req: HttpRequest) -> Resp {
@@ -38,8 +38,11 @@ pub async fn handle(req: HttpRequest) -> Resp {
     }
     let config = SETTINGS.get(namespace).unwrap();
     let query_string = req.query_string();
-    let identifier = hex::encode(Sha256::digest((namespace.to_owned() + path + query_string).as_ref()));
-    let uri = (&config.host).to_owned() + path + "?" + query_string;
+    let identifier = hex::encode(Sha256::digest((namespace.to_owned() + path + "?" + query_string).as_ref()));
+    let mut uri = (&config.host).to_owned() + path;
+    if query_string.len() != 0 {
+        uri = uri + "?" + query_string;
+    }
     let object = crate::cache::from_cache(identifier.clone());
     match object {
         Some(mut o) => {
