@@ -21,13 +21,13 @@ pub enum ContentEncoding {
     Identity,
 }
 
-impl ContentEncoding {
-    fn to_string(&self) -> &str {
+impl ToString for ContentEncoding {
+    fn to_string(&self) -> String {
         match self {
-            ContentEncoding::Br => "br",
-            ContentEncoding::Deflate => "deflate",
-            ContentEncoding::Gzip => "gzip",
-            _ => "identity"
+            ContentEncoding::Br => "br".to_string(),
+            ContentEncoding::Deflate => "deflate".to_string(),
+            ContentEncoding::Gzip => "gzip".to_string(),
+            _ => "identity".to_string()
         }
     }
 }
